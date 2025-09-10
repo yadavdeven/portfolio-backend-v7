@@ -1,0 +1,17 @@
+# Ignore compiled JS but keep Jest config
+*.js
+!jest.config.js
+
+# Ignore TypeScript declaration files
+*.d.ts
+
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.*
+
+# CDK asset staging and output
+.cdk.staging/
+cdk.out/

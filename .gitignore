@@ -1,0 +1,44 @@
+# .gitignore for portfolio-backend root (Node.js/Express with AWS CDK)
+
+# Node.js dependencies
+node_modules/
+
+# Environment files (sensitive info)
+.env
+.env.*
+.env.local
+.env.dev
+.env.prod
+
+# Build artifacts
+dist/
+build/
+*.zip
+lambda.zip
+
+# CDK artifacts
+cdk.out/
+.cdk.staging/
+cdk.context.json
+
+# Logs and temp files
+*.log
+.tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+
+# Test coverage
+coverage/
+
+# Misc
+npm-debug.log
+yarn-error.log
+*.swp
+*.swo
