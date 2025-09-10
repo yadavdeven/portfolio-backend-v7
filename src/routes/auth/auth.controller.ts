@@ -33,7 +33,8 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
     user.guid = updatedGuid;
     await user.save();
 
-    const token = user.createJWT();
+    // ✅ await the Promise here
+    const token = await user.createJWT();
 
     res.status(httpStatusCodes.OK).json({
       isSuccess: true,
@@ -99,10 +100,9 @@ const register = async (
       guid: newGuid,
     });
 
-    // Generate JWT
-    const token = user.createJWT();
+    // ✅ await here too
+    const token = await user.createJWT();
 
-    // Send response
     res.status(httpStatusCodes.CREATED).json({
       isSuccess: true,
       message: "Registration successful",

@@ -13,25 +13,28 @@ function getSSMClient() {
   return ssmClient;
 }
 
+type ParamConfig = {
+  key: string;
+  secure?: boolean; // true = SecureString, false = String
+};
+
 // Batch retrieval function
 async function retrieveEnvVariables(
   envName: string,
-  paramKeys: string[]
+  paramConfigs: ParamConfig[]
 ): Promise<Record<string, string>> {
   const env = process.env.NODE_ENV || envName || "dev";
 
-  // Build full parameter paths
-  const paramNames = paramKeys.map(
-    (key) => `/portfolio/${env}/${key}`
-  );
-
   const client = getSSMClient();
+
+  // Build full paths
+  const paramNames = paramConfigs.map((p) => `/portfolio/${env}/${p.key}`);
 
   // Fallback to process.env if not Lambda
   if (!client) {
     const result: Record<string, string> = {};
-    for (const key of paramKeys) {
-      result[key] = process.env[key.toUpperCase()] || `default-${key}`;
+    for (const p of paramConfigs) {
+      result[p.key] = process.env[p.key.toUpperCase()] || `default-${p.key}`;
     }
     return result;
   }
@@ -39,7 +42,7 @@ async function retrieveEnvVariables(
   try {
     const command = new GetParametersCommand({
       Names: paramNames,
-      WithDecryption: true,
+      WithDecryption: true, // AWS SDK auto-handles both SecureString & String here
     });
 
     const response = await client.send(command);
@@ -56,8 +59,8 @@ async function retrieveEnvVariables(
       });
     }
 
-    // Fill defaults for missing keys
-    for (const key of paramKeys) {
+    // Fill defaults for missing
+    for (const { key } of paramConfigs) {
       if (!result[key]) {
         result[key] = `default-${key}`;
       }

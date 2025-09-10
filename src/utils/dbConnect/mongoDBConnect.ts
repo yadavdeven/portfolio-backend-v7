@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { retrieveEnvVariables } from "../helper-functions/retrieveENVVariables";
 
 mongoose.connection.once("open", () => {
   console.log(`✅ Connected to MongoDB in ${process.env.NODE_ENV} environment`);
@@ -9,13 +10,27 @@ mongoose.connection.on("error", (err) => {
 });
 
 let isConnected = false; // For Lambda connection reuse
+let cachedUri: string | null = null; // Cache SSM result
 
 async function getMongoDBUri(uri?: string): Promise<string> {
-  if (uri) return uri; // From loadConfig
-  if (!process.env.MONGO_URI) {
-    throw new Error("MONGO_URI is not defined in environment variables");
+  if (uri) return uri; // explicit override
+  if (cachedUri) return cachedUri; // reuse if already fetched
+
+  if (process.env.MONGO_URI) {
+    cachedUri = process.env.MONGO_URI;
+    return cachedUri;
   }
-  return process.env.MONGO_URI;
+
+  if (!process.env.MONGO_URI_PARAM) {
+    throw new Error("MONGO_URI_PARAM is not defined in environment variables");
+  }
+
+  // Fetch from SSM SecureString
+  const params = await retrieveEnvVariables(process.env.NODE_ENV || "dev", [
+    { key: "MONGO_URI", secure: true },
+  ]);
+  cachedUri = params.MONGO_URI;
+  return cachedUri;
 }
 
 async function connectMongoDB(uri?: string) {

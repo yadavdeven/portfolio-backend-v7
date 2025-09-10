@@ -1,9 +1,9 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { retrieveEnvVariables } from "../utils/helper-functions/retrieveENVVariables";
 import jwt, { SignOptions } from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import validator from "validator";
 import bcrypt from "bcryptjs";
-import { loadConfig } from "../utils/helper-functions/configLoader";
 
 export interface IUser extends Document {
   name: string;
@@ -13,7 +13,7 @@ export interface IUser extends Document {
   guid?: string;
   createdAt: Date;
   updatedAt: Date;
-  createJWT: () => string;
+  createJWT: () => Promise<string>;
   comparePassword: (candidatePassword: string) => Promise<boolean>;
 }
 
@@ -47,7 +47,7 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: true,
       minlength: [6, "Password must be at least 6 characters long"],
-      select: false, // Do not return password in queries by default
+      select: false,
     },
     guid: {
       type: String,
@@ -56,12 +56,13 @@ const userSchema = new Schema<IUser>(
     },
   },
   {
-    timestamps: {
-      createdAt: "createdAt",
-      updatedAt: "updatedAt",
-    },
+    timestamps: true,
   }
 );
+
+// 🔐 Cache JWT secret & expiry (to avoid multiple SSM calls)
+let cachedJwtSecret: string | null = null;
+let cachedJwtExpiresIn: string | null = null;
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
@@ -70,23 +71,32 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.createJWT = async function (): Promise<string> {
-  let secret;
-  if (process.env.AWS_EXECUTION_ENV === undefined) {
-    secret = process.env.JWT_SECRET;
-  } else {
-    const envName = process.env.NODE_ENV || "dev";
-    const config = await loadConfig(envName);
-    secret = config.jwtSecret;
+  if (!cachedJwtSecret || !cachedJwtExpiresIn) {
+    if (process.env.AWS_EXECUTION_ENV === undefined) {
+      // Local dev → .env
+      cachedJwtSecret = process.env.JWT_SECRET || "";
+      cachedJwtExpiresIn = process.env.JWT_EXPIRES_IN || "600";
+    } else {
+      // Lambda → fetch from SSM
+      const envName = process.env.NODE_ENV || "dev";
+      const params = await retrieveEnvVariables(envName, [
+        { key: "JWT_SECRET", secure: true },
+        { key: "JWT_EXPIRES_IN", secure: false },
+      ]);
+      cachedJwtSecret = params.JWT_SECRET;
+      cachedJwtExpiresIn = params.JWT_EXPIRES_IN;
+    }
   }
-  if (!secret || typeof secret !== "string") {
-    throw new Error(
-      "JWT_SECRET is not defined or invalid in environment variables"
-    );
+
+  if (!cachedJwtSecret) {
+    throw new Error("JWT_SECRET is missing from environment or SSM");
   }
+
   const options: SignOptions = {
-    expiresIn: parseInt(process.env.JWT_EXPIRES_IN || "600", 10),
+    expiresIn: parseInt(cachedJwtExpiresIn || "600", 10),
   };
-  return jwt.sign({ userId: this._id }, secret, options);
+
+  return jwt.sign({ userId: this._id }, cachedJwtSecret, options);
 };
 
 userSchema.methods.comparePassword = async function (

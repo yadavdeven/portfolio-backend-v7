@@ -1,4 +1,3 @@
-import { loadConfig } from "./utils/helper-functions/configLoader";
 import connectToMongoDB from "./utils/dbConnect/mongoDBConnect";
 import serverlessExpress from "@codegenie/serverless-express";
 import app from "./app";
@@ -14,11 +13,9 @@ let cachedHandler: any;
 
 export const handler = async (event: any, context: any) => {
   if (!cachedHandler) {
-    const envName = process.env.NODE_ENV || "dev";
-    const config = await loadConfig(envName);
-
-    await connectToMongoDB(config.mongoUri);
-    console.log("Connected to MongoDB");
+    // Connect to MongoDB (internally resolves MONGO_URI from .env or SSM SecureString)
+    await connectToMongoDB();
+    console.log("✅ Connected to MongoDB");
 
     // Wrap express app AFTER setup
     cachedHandler = serverlessExpress({ app });

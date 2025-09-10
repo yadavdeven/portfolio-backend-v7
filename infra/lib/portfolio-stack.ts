@@ -7,30 +7,36 @@ import { Construct } from "constructs";
 export class PortfolioStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
     const envName = this.node.tryGetContext("env") || "dev";
 
-    const mongoUriParam = ssm.StringParameter.fromStringParameterName(
-      this,
-      "MongoUriParam",
-      `/portfolio/${envName}/MONGO_URI`
-    );
+    // 🔐 Secure SSM parameters (stored as SecureString in SSM)
+    const mongoUriParam =
+      ssm.StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "MongoUriParam",
+        { parameterName: `/portfolio/${envName}/MONGO_URI` }
+      );
 
-    const jwtSecretParam = ssm.StringParameter.fromStringParameterName(
-      this,
-      "JwtSecretParam",
-      `/portfolio/${envName}/JWT_SECRET`
-    );
+    const jwtSecretParam =
+      ssm.StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "JwtSecretParam",
+        { parameterName: `/portfolio/${envName}/JWT_SECRET` }
+      );
 
+    const jwtRefreshSecretParam =
+      ssm.StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "JwtRefreshSecretParam",
+        { parameterName: `/portfolio/${envName}/JWT_REFRESH_SECRET` }
+      );
+
+    // 🔓 Non-sensitive SSM parameters (plain String)
     const jwtExpiresInParam = ssm.StringParameter.fromStringParameterName(
       this,
       "JwtExpiresInParam",
       `/portfolio/${envName}/JWT_EXPIRES_IN`
-    );
-
-    const jwtRefreshSecretParam = ssm.StringParameter.fromStringParameterName(
-      this,
-      "JwtRefreshSecretParam",
-      `/portfolio/${envName}/JWT_REFRESH_SECRET`
     );
 
     const jwtRefreshExpiresInParam =
@@ -40,19 +46,19 @@ export class PortfolioStack extends cdk.Stack {
         `/portfolio/${envName}/JWT_REFRESH_EXPIRES_IN`
       );
 
-    // Define the Lambda function
+    // 🚀 Define Lambda
     const portfolioLambda = new lambda.Function(this, "PortfolioLambda", {
       runtime: lambda.Runtime.NODEJS_22_X,
       code: lambda.Code.fromAsset("../", {
         exclude: [
-          "infra/**", // infra folder is not needed
-          "cdk.out/**", // prevent recursive asset copying
-          ".git/**", // don’t package git metadata
-          ".env*", // ignore local env files
+          "infra/**",
+          "cdk.out/**",
+          ".git/**",
+          ".env*",
           "*.md",
           "tsconfig.json",
-          "test/**", // optional: skip tests
-          "*.ts", // ship only built JS, not TS sources
+          "test/**",
+          "*.ts",
         ],
       }),
       handler: "dist/handler.handler",
@@ -69,24 +75,24 @@ export class PortfolioStack extends cdk.Stack {
       },
     });
 
-    // Grant Lambda permission to read parameters
+    // ✅ Grant permissions (includes kms:Decrypt for SecureStrings)
     mongoUriParam.grantRead(portfolioLambda);
     jwtSecretParam.grantRead(portfolioLambda);
-    jwtExpiresInParam.grantRead(portfolioLambda);
     jwtRefreshSecretParam.grantRead(portfolioLambda);
+    jwtExpiresInParam.grantRead(portfolioLambda);
     jwtRefreshExpiresInParam.grantRead(portfolioLambda);
 
-    // Define API Gateway
+    // 🌐 API Gateway
     const api = new apigateway.LambdaRestApi(this, `PortfolioApi-${envName}`, {
       handler: portfolioLambda,
       proxy: true,
       deployOptions: { stageName: envName },
     });
 
-    // Output API endpoint
+    // 📣 Output endpoint
     new cdk.CfnOutput(this, "ApiEndpoint", {
       value: api.url,
-      description: `API Gateway endpoint URL for portfolio app - ${envName}`,
+      description: `API Gateway endpoint for portfolio app - ${envName}`,
     });
   }
 }

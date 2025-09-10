@@ -1,4 +1,3 @@
-import { loadConfig } from "./utils/helper-functions/configLoader";
 import connectToMongoDB from "./utils/dbConnect/mongoDBConnect";
 import app from "./app";
 import http from "http";
@@ -10,15 +9,14 @@ if (process.env.AWS_EXECUTION_ENV === undefined) {
 
 async function startServer() {
   try {
-    const envName = process.env.NODE_ENV || "dev";
-    const config = await loadConfig(envName);
-    await connectToMongoDB(config.mongoUri);
+    // MongoDB connection (auto-resolves local .env or SSM SecureString)
+    await connectToMongoDB();
     console.log("Connected to MongoDB");
 
     const server = http.createServer(app);
     const PORT = process.env.PORT || 5005;
     server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
 
     server.on("error", (err) => {
