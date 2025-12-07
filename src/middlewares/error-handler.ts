@@ -13,6 +13,7 @@ export default function errorHandler(
 
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
+      isSuccess: false,
       status: err.statusCode,
       message: err.message,
       ...(isDev && { stack: err.stack }),
@@ -23,6 +24,7 @@ export default function errorHandler(
   console.error("Unexpected error:", err);
 
   return res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).json({
+    isSuccess: false,
     status: httpStatusCodes.INTERNAL_SERVER_ERROR,
     message: textConstants.SOMETHING_WENT_WRONG,
     ...(isDev && { stack: err.stack }),
