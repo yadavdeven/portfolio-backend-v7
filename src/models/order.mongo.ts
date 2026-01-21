@@ -43,69 +43,72 @@ export interface IOrder extends Document {
   updatedAt: Date;
 }
 
-const orderSchema = new Schema<IOrder>({
-  orderId: {
-    type: String,
-    required: [true, "Order Id is required"],
-    unique: true,
-    trim: true,
-    index: true,
+const orderSchema = new Schema<IOrder>(
+  {
+    orderId: {
+      type: String,
+      required: [true, "Order Id is required"],
+      unique: true,
+      trim: true,
+      index: true,
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "User Id is required"],
+      trim: true,
+      index: true,
+    },
+    orderDate: {
+      type: Date,
+      required: [true, "Order Date is required"],
+      default: Date.now,
+    },
+    customerName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    customerMobile: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    customerEmail: {
+      type: String,
+      required: false,
+      trim: true,
+      lowercase: true,
+    },
+    productName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      default: 1,
+      min: 1,
+    },
+    totalAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    paymentMethod: {
+      type: String,
+      enum: Object.values(PaymentMethod),
+      default: PaymentMethod.UPI,
+    },
+    currStatus: {
+      type: String,
+      enum: Object.values(OrderStatus),
+      default: OrderStatus.Processing,
+    },
   },
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
-    required: [true, "User Id is required"],
-    trim: true,
-    index: true,
-  },
-  orderDate: {
-    type: Date,
-    required: [true, "Order Date is required"],
-    default: Date.now,
-  },
-  customerName: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  customerMobile: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  customerEmail: {
-    type: String,
-    required: false,
-    trim: true,
-    lowercase: true,
-  },
-  productName: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  quantity: {
-    type: Number,
-    required: true,
-    default: 1,
-    min: 1,
-  },
-  totalAmount: {
-    type: Number,
-    required: true,
-    min: 0,
-  },
-  paymentMethod: {
-    type: String,
-    enum: Object.values(PaymentMethod),
-    default: PaymentMethod.UPI,
-  },
-  currStatus: {
-    type: String,
-    enum: Object.values(OrderStatus),
-    default: OrderStatus.Processing,
-  },
-});
+  { timestamps: true }
+);
 
 /**
  * Auto-Increment Order ID: ORD-1001, ORD-1002, ...
