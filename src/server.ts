@@ -1,11 +1,9 @@
+import dotenv from "dotenv";
+dotenv.config({ path: `.env.${process.env.NODE_ENV || "dev"}` });
+
 import connectToMongoDB from "./utils/dbConnect/mongoDBConnect";
 import app from "./app";
 import http from "http";
-
-if (process.env.AWS_EXECUTION_ENV === undefined) {
-  const dotenv = require("dotenv");
-  dotenv.config({ path: `.env.${process.env.NODE_ENV || "dev"}` });
-}
 
 async function startServer() {
   try {

@@ -5,11 +5,14 @@ import { v4 as uuidv4 } from "uuid";
 import validator from "validator";
 import bcrypt from "bcryptjs";
 
+export type AuthProvider = "email" | "google";
+
 export interface IUser extends Document {
   name: string;
   email: string;
-  mobile: string;
-  password: string;
+  mobile?: string;
+  password?: string;
+  authProvider: AuthProvider;
   guid?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -19,25 +22,19 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
-    name: {
-      type: String,
-      required: [true, "Name is required"],
-      minlength: [3, "Name must be at least 3 characters long"],
-      maxlength: [50, "Name must be at most 50 characters long"],
-      trim: true,
-    },
+    name: { type: String, required: true },
     email: {
       type: String,
-      required: [true, "Email is required"],
+      required: true,
       unique: true,
       lowercase: true,
       trim: true,
-      validate: [validator.isEmail, "Please provide a valid email address"],
+      validate: [validator.isEmail, "Invalid email"],
     },
     mobile: {
       type: String,
-      required: [true, "Mobile number is required"],
       unique: true,
+      sparse: true,
       validate: [
         validator.isMobilePhone,
         "Please provide a valid mobile number",
@@ -45,9 +42,16 @@ const userSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: true,
-      minlength: [6, "Password must be at least 6 characters long"],
+      minlength: 6,
       select: false,
+      required: function (this: IUser) {
+        return this.authProvider === "email";
+      },
+    },
+    authProvider: {
+      type: String,
+      enum: ["email", "google"],
+      required: true,
     },
     guid: {
       type: String,
@@ -55,9 +59,7 @@ const userSchema = new Schema<IUser>(
       default: uuidv4,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true },
 );
 
 // 🔐 Cache JWT secret & expiry (to avoid multiple SSM calls)
@@ -65,7 +67,10 @@ let cachedJwtSecret: string | null = null;
 let cachedJwtExpiresIn: string | null = null;
 
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  if (!this.password || !this.isModified("password")) {
+    return next();
+  }
+
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
@@ -73,11 +78,9 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.createJWT = async function (): Promise<string> {
   if (!cachedJwtSecret || !cachedJwtExpiresIn) {
     if (process.env.AWS_EXECUTION_ENV === undefined) {
-      // Local dev → .env
       cachedJwtSecret = process.env.JWT_SECRET || "";
       cachedJwtExpiresIn = process.env.JWT_EXPIRES_IN || "600";
     } else {
-      // Lambda → fetch from SSM
       const envName = process.env.NODE_ENV || "dev";
       const params = await retrieveEnvVariables(envName, [
         { key: "JWT_SECRET", secure: true },
@@ -100,8 +103,9 @@ userSchema.methods.createJWT = async function (): Promise<string> {
 };
 
 userSchema.methods.comparePassword = async function (
-  candidatePassword: string
+  candidatePassword: string,
 ): Promise<boolean> {
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 

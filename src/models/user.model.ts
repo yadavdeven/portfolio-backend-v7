@@ -1,11 +1,14 @@
 import UserModel, { IUser } from "./user.mongo";
 
 // Input interface for creating a user
-interface IUserCreate {
+export type AuthProvider = "email" | "google";
+
+export interface IUserCreate {
   name: string;
   email: string;
-  mobile: string;
-  password: string;
+  mobile?: string;
+  password?: string;
+  authProvider: AuthProvider;
   guid?: string;
 }
 
@@ -17,7 +20,7 @@ const findUserByEmail = async (email: string): Promise<IUser | null> => {
 // Find user by email or mobile (for register)
 const findUserByEmailOrMobile = async (
   email: string,
-  mobile: string
+  mobile: string,
 ): Promise<IUser | null> => {
   return await UserModel.findOne({ $or: [{ email }, { mobile }] });
 };
@@ -28,9 +31,17 @@ const createUser = async ({
   email,
   mobile,
   password,
+  authProvider,
   guid,
 }: IUserCreate): Promise<IUser> => {
-  return await UserModel.create({ name, email, mobile, password, guid });
+  return await UserModel.create({
+    name,
+    email,
+    mobile,
+    password,
+    authProvider,
+    guid,
+  });
 };
 
 export { findUserByEmail, findUserByEmailOrMobile, createUser };
