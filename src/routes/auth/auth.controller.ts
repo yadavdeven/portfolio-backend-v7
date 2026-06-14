@@ -7,11 +7,12 @@ import {
   createUser,
   findUserByEmail,
   findUserByEmailOrMobile,
+  findUserByFirebaseUid,
 } from "../../models/user.model";
 import { generateRefreshToken } from "../../utils/helper-functions/refreshTokenService";
 import UnAuthenticatedError from "../../utils/errors/unauthenticated-error";
 import httpStatusCodes from "../../utils/constants/http-status-codes";
-import admin from "../../utils/helper-functions/firebase-admin";
+import getFirebaseAdmin from "../../utils/helper-functions/firebase-admin";
 import RefreshTokenModel from "../../models/refreshToken.mongo";
 import BadRequestError from "../../utils/errors/bad-request";
 import UserModel from "../../models/user.mongo";
@@ -58,6 +59,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
         token: accessToken,
         refreshToken: token,
         guid: user.guid,
+        email,
       },
     });
   } catch (error) {
@@ -134,6 +136,7 @@ const register = async (
         token: accessToken,
         refreshToken: token,
         guid: user.guid,
+        email,
       },
     });
   } catch (error) {
@@ -147,42 +150,73 @@ const googleAuth = async (req: Request, res: Response, next: NextFunction) => {
 
     if (!idToken) {
       throw new BadRequestError(
-        "ID Token is required for Google authentication",
+        "ID token is required for Google authentication",
       );
     }
 
-    // 🔐 Verify Firebase ID token
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-    const { email, name } = decodedToken;
-
-    if (!email) {
-      throw new UnAuthenticatedError("Invalid Google token");
+    // 🔐 Verify the Firebase ID token. A verification failure (expired, malformed,
+    // wrong project, revoked) is an authentication problem, not a server fault — map
+    // it to 401 instead of letting it bubble up as an opaque 500.
+    let decodedToken;
+    try {
+      const admin = await getFirebaseAdmin();
+      decodedToken = await admin.auth().verifyIdToken(idToken);
+    } catch {
+      throw new UnAuthenticatedError(
+        "Invalid or expired Google session. Please sign in again.",
+      );
     }
 
-    // 🔎 Find user
-    let user = await findUserByEmail(email);
+    const {
+      uid: firebaseUid,
+      email,
+      email_verified: emailVerified,
+      name,
+    } = decodedToken;
 
-    // 🔑 Generate new GUID
+    if (!email) {
+      throw new UnAuthenticatedError("Google account has no email address");
+    }
+
+    // Only trust verified emails. An unverified email could belong to someone
+    // else, so accepting it would allow account takeover by email collision.
+    if (emailVerified === false) {
+      throw new UnAuthenticatedError(
+        "Your Google email is not verified. Please verify it and try again.",
+      );
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    // Resolve identity by the stable Firebase UID first; fall back to email so we
+    // can link Google to a pre-existing account (legacy users, or someone who
+    // first registered with email/password). Email is the trusted link key here
+    // precisely because we required `email_verified` above.
+    let user = await findUserByFirebaseUid(firebaseUid);
+    if (!user) {
+      user = await findUserByEmail(normalizedEmail);
+    }
+
     const newGuid = uuidv4();
 
     if (user) {
-      // 🟢 LOGIN
+      // 🟢 Returning user — or first-time linking of Google to an existing account.
+      user.firebaseUid = firebaseUid;
+      if (name && !user.name) user.name = name;
       user.guid = newGuid;
       await user.save();
     } else {
-      console.log("inside else");
-
-      // 🟡 REGISTER (Google user)
+      // 🟡 New Google user.
       user = await createUser({
         name: name || "Google User",
-        email,
+        email: normalizedEmail,
         authProvider: "google",
+        firebaseUid,
         guid: newGuid,
       });
     }
 
-    // 🔐 Create backend JWT
+    // 🔐 Issue our own backend session (access + rotating refresh token).
     const accessToken = await user.createJWT();
 
     const { token, tokenHash, expiresAt } = generateRefreshToken();
@@ -193,7 +227,7 @@ const googleAuth = async (req: Request, res: Response, next: NextFunction) => {
       expiresAt,
     });
 
-    return res.status(httpStatusCodes.OK).json({
+    res.status(httpStatusCodes.OK).json({
       isSuccess: true,
       message: "Google authentication successful",
       responseData: {
@@ -201,6 +235,7 @@ const googleAuth = async (req: Request, res: Response, next: NextFunction) => {
         token: accessToken,
         refreshToken: token,
         guid: user.guid,
+        email: user.email,
       },
     });
   } catch (error) {

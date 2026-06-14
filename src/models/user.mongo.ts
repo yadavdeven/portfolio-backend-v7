@@ -13,7 +13,9 @@ export interface IUser extends Document {
   mobile?: string;
   password?: string;
   authProvider: AuthProvider;
+  firebaseUid?: string;
   guid?: string;
+  biometricEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
   createJWT: () => Promise<string>;
@@ -53,11 +55,20 @@ const userSchema = new Schema<IUser>(
       enum: ["email", "google"],
       required: true,
     },
+    // Stable identifier from Firebase (the token `sub`/`uid`). Unique but sparse
+    // so legacy email/password users without one don't collide on `null`. This is
+    // the canonical link to a Google identity — emails can change, UIDs cannot.
+    firebaseUid: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     guid: {
       type: String,
       unique: true,
       default: uuidv4,
     },
+    biometricEnabled: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

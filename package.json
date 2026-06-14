@@ -10,9 +10,9 @@
     "start-dev": "NODE_ENV=dev node dist/server.js",
     "start-prod": "NODE_ENV=prod node dist/server.js",
     "bundle": "npm run build && cd dist && zip -r ../lambda.zip . && cd ..",
-    "deploy": "cd infra && cdk deploy --context env=$npm_config_env",
-    "deploy-dev": "cd infra && cdk deploy --context env=dev",
-    "deploy-prod": "cd infra && cdk deploy --context env=prod"
+    "deploy": "npm run build && cd infra && cdk deploy --context env=$npm_config_env",
+    "deploy-dev": "npm run build && cd infra && cdk deploy --context env=dev",
+    "deploy-prod": "npm run build && cd infra && cdk deploy --context env=prod"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +23,7 @@
     "@codegenie/serverless-express": "^4.17.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "firebase-admin": "^13.6.0",

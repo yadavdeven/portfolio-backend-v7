@@ -9,12 +9,20 @@ export interface IUserCreate {
   mobile?: string;
   password?: string;
   authProvider: AuthProvider;
+  firebaseUid?: string;
   guid?: string;
 }
 
 // Find user by email (for login)
 const findUserByEmail = async (email: string): Promise<IUser | null> => {
   return await UserModel.findOne({ email }).select("+password");
+};
+
+// Find user by their Firebase UID (preferred lookup for Google sign-in)
+const findUserByFirebaseUid = async (
+  firebaseUid: string,
+): Promise<IUser | null> => {
+  return await UserModel.findOne({ firebaseUid });
 };
 
 // Find user by email or mobile (for register)
@@ -32,6 +40,7 @@ const createUser = async ({
   mobile,
   password,
   authProvider,
+  firebaseUid,
   guid,
 }: IUserCreate): Promise<IUser> => {
   return await UserModel.create({
@@ -40,8 +49,14 @@ const createUser = async ({
     mobile,
     password,
     authProvider,
+    firebaseUid,
     guid,
   });
 };
 
-export { findUserByEmail, findUserByEmailOrMobile, createUser };
+export {
+  findUserByEmail,
+  findUserByEmailOrMobile,
+  findUserByFirebaseUid,
+  createUser,
+};

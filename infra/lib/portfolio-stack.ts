@@ -32,6 +32,14 @@ export class PortfolioStack extends cdk.Stack {
         { parameterName: `/portfolio/${envName}/JWT_REFRESH_SECRET` }
       );
 
+    // Firebase service-account JSON (whole file stored as one SecureString).
+    const firebaseServiceAccountParam =
+      ssm.StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "FirebaseServiceAccountParam",
+        { parameterName: `/portfolio/${envName}/FIREBASE_SERVICE_ACCOUNT` }
+      );
+
     // 🔓 Non-sensitive SSM parameters (plain String)
     const jwtExpiresInParam = ssm.StringParameter.fromStringParameterName(
       this,
@@ -59,6 +67,8 @@ export class PortfolioStack extends cdk.Stack {
           "tsconfig.json",
           "test/**",
           "*.ts",
+          // Firebase credentials come from SSM at runtime — never ship the key.
+          "*firebase-adminsdk*.json",
         ],
       }),
       handler: "dist/handler.handler",
@@ -81,6 +91,7 @@ export class PortfolioStack extends cdk.Stack {
     jwtRefreshSecretParam.grantRead(portfolioLambda);
     jwtExpiresInParam.grantRead(portfolioLambda);
     jwtRefreshExpiresInParam.grantRead(portfolioLambda);
+    firebaseServiceAccountParam.grantRead(portfolioLambda);
 
     // 🌐 API Gateway
     const api = new apigateway.LambdaRestApi(this, `PortfolioApi-${envName}`, {

@@ -10,6 +10,9 @@ node_modules/
 .env.dev
 .env.prod
 
+# Firebase service-account credentials (never commit; load via SSM / .env)
+*firebase-adminsdk*.json
+
 # Build artifacts
 dist/
 build/
